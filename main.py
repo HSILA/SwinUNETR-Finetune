@@ -32,7 +32,7 @@ from monai.utils.enums import MetricReduction
 
 parser = argparse.ArgumentParser(description="Swin UNETR segmentation pipeline")
 parser.add_argument("--checkpoint", default=None, help="start training from saved checkpoint")
-parser.add_argument("--logdir", default="test", type=str, help="directory to save the tensorboard logs")
+parser.add_argument("--exp", default="test", type=str, help="directory to save the tensorboard logs")
 parser.add_argument(
     "--pretrained_dir", default="./pretrained_models/", type=str, help="pretrained checkpoint directory"
 )
@@ -96,7 +96,7 @@ parser.add_argument("--squared_dice", action="store_true", help="use squared Dic
 def main():
     args = parser.parse_args()
     args.amp = not args.noamp
-    args.logdir = "./runs/" + args.logdir
+    args.logdir = "./runs/" + args.exp
     if args.distributed:
         args.ngpus_per_node = torch.cuda.device_count()
         print("Found total gpus", args.ngpus_per_node)
