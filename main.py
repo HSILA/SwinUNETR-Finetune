@@ -89,6 +89,7 @@ parser.add_argument("--smooth_dr", default=1e-6, type=float, help="constant adde
 parser.add_argument("--smooth_nr", default=0.0, type=float, help="constant added to dice numerator to avoid zero")
 parser.add_argument("--use_checkpoint", action="store_true", help="use gradient checkpointing to save memory")
 parser.add_argument("--use_ssl_pretrained", action="store_true", help="use self-supervised pretrained weights")
+parser.add_argument("--ssl_pretrained_path", default="./pretrained_models/model_swinvit.pt", type=str, help="path to the visual representation")
 parser.add_argument("--spatial_dims", default=3, type=int, help="spatial dimension of input data")
 parser.add_argument("--squared_dice", action="store_true", help="use squared Dice")
 
@@ -145,7 +146,7 @@ def main_worker(gpu, args):
 
     if args.use_ssl_pretrained:
         try:
-            model_dict = torch.load("./pretrained_models/model_swinvit.pt")
+            model_dict = torch.load(args.ssl_pretrained_path)
             state_dict = model_dict["state_dict"]
             # fix potential differences in state dict keys from pre-training to
             # fine-tuning
