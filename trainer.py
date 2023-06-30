@@ -12,6 +12,7 @@
 import os
 import shutil
 import time
+from logger import logger
 
 import numpy as np
 import torch
@@ -55,10 +56,8 @@ def train_epoch(model, loader, optimizer, scaler, epoch, loss_func, args):
         else:
             run_loss.update(loss.item(), n=args.batch_size)
         if args.rank == 0:
-            print(
-                "Epoch {}/{} {}/{}".format(epoch, args.max_epochs, idx, len(loader)),
-                "loss: {:.4f}".format(run_loss.avg),
-                "time {:.2f}s".format(time.time() - start_time),
+            logger.info(
+                f"Epoch {epoch}/{args.max_epochs} {idx}/{len(loader)}\tloss: {run_loss.avg:.4f}\ttime {time.time() - start_time:.2f}s"
             )
         start_time = time.time()
     for param in model.parameters():
@@ -105,11 +104,8 @@ def val_epoch(model, loader, epoch, acc_func, args, model_inferer=None, post_lab
 
             if args.rank == 0:
                 avg_acc = np.mean(run_acc.avg)
-                print(
-                    "Val {}/{} {}/{}".format(epoch, args.max_epochs, idx, len(loader)),
-                    "acc",
-                    avg_acc,
-                    "time {:.2f}s".format(time.time() - start_time),
+                logger.info(
+                    f"Val {epoch}/{args.max_epochs} {idx}/{len(loader)}\tacc:{avg_acc}\ttime {time.time() - start_time:.2f}s"
                 )
             start_time = time.time()
     return run_acc.avg
@@ -124,7 +120,7 @@ def save_checkpoint(model, epoch, args, filename="model.pt", best_acc=0, optimiz
         save_dict["scheduler"] = scheduler.state_dict()
     filename = os.path.join(args.logdir, filename)
     torch.save(save_dict, filename)
-    print("Saving checkpoint", filename)
+    logger.info(f"Saving checkpoint {filename}")
 
 
 def run_training(
@@ -145,7 +141,7 @@ def run_training(
     if args.logdir is not None and args.rank == 0:
         writer = SummaryWriter(log_dir=args.logdir)
         if args.rank == 0:
-            print("Writing Tensorboard logs to ", args.logdir)
+            logger.info(f"Writing Tensorboard logs to {args.logdir}")
     scaler = None
     if args.amp:
         scaler = GradScaler()
@@ -154,16 +150,14 @@ def run_training(
         if args.distributed:
             train_loader.sampler.set_epoch(epoch)
             torch.distributed.barrier()
-        print(args.rank, time.ctime(), "Epoch:", epoch)
+        logger.info(f'{args.rank}\t{time.ctime()}\tEpoch: {epoch}')
         epoch_time = time.time()
         train_loss = train_epoch(
             model, train_loader, optimizer, scaler=scaler, epoch=epoch, loss_func=loss_func, args=args
         )
         if args.rank == 0:
-            print(
-                "Final training  {}/{}".format(epoch, args.max_epochs - 1),
-                "loss: {:.4f}".format(train_loss),
-                "time {:.2f}s".format(time.time() - epoch_time),
+            logger.info(
+                f"Final training  {epoch}/{args.max_epochs - 1}\tloss: {train_loss:.4f}\ttime {time.time() - epoch_time:.2f}s"
             )
         if args.rank == 0 and writer is not None:
             writer.add_scalar("train_loss", train_loss, epoch)
@@ -186,16 +180,13 @@ def run_training(
             val_avg_acc = np.mean(val_avg_acc)
 
             if args.rank == 0:
-                print(
-                    "Final validation  {}/{}".format(epoch, args.max_epochs - 1),
-                    "acc",
-                    val_avg_acc,
-                    "time {:.2f}s".format(time.time() - epoch_time),
+                logger.info(
+                    f"Final validation  {epoch}/{args.max_epochs - 1}\tacc:{val_avg_acc}\ttime {time.time() - epoch_time:.2f}s"
                 )
                 if writer is not None:
                     writer.add_scalar("val_acc", val_avg_acc, epoch)
                 if val_avg_acc > val_acc_max:
-                    print("new best ({:.6f} --> {:.6f}). ".format(val_acc_max, val_avg_acc))
+                    logger.info("new best ({:.6f} --> {:.6f}). ".format(val_acc_max, val_avg_acc))
                     val_acc_max = val_avg_acc
                     b_new_best = True
                     if args.rank == 0 and args.logdir is not None and args.save_checkpoint:
@@ -205,12 +196,12 @@ def run_training(
             if args.rank == 0 and args.logdir is not None and args.save_checkpoint:
                 save_checkpoint(model, epoch, args, best_acc=val_acc_max, filename="model_final.pt")
                 if b_new_best:
-                    print("Copying to model.pt new best model!!!!")
+                    logger.info("Copying to model.pt new best model!!!!")
                     shutil.copyfile(os.path.join(args.logdir, "model_final.pt"), os.path.join(args.logdir, "model.pt"))
 
         if scheduler is not None:
             scheduler.step()
 
-    print("Training Finished !, Best Accuracy: ", val_acc_max)
+    logger.info(f"Training Finished !, Best Accuracy: {val_acc_max}")
 
     return val_acc_max
